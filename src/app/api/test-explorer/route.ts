@@ -8,31 +8,51 @@ export async function GET() {
       return NextResponse.json({ error: 'No API key found' })
     }
 
-    // Test Explorer API directly
-    const testUrl = 'https://fr24api.flightradar24.com/api/flights/positions?bounds=52,-1,-1,2'
+    // Test multiple Explorer API formats
+    const testUrls = [
+      'https://api.flightradar24.com/live/v1/zones/fcgi?bounds=52,-1,-1,2',
+      'https://api.flightradar24.com/common/v1/search.json?lat=51.47&lon=-0.45&radius=100',
+      'https://fr24api.flightradar24.com/v1/flights/positions?bounds=52,-1,-1,2'
+    ]
 
-    console.log('Testing Explorer API with URL:', testUrl)
-    console.log('API Key (first 8 chars):', apiKey.substring(0, 8))
+    const results = []
 
-    const response = await fetch(testUrl, {
-      headers: {
-        'X-RapidAPI-Key': apiKey,
-        'X-RapidAPI-Host': 'fr24api.flightradar24.com',
-        'Accept': 'application/json',
-      },
-    })
+    for (const testUrl of testUrls) {
+      try {
+        console.log('Testing URL:', testUrl)
 
-    const responseText = await response.text()
+        const response = await fetch(testUrl, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Accept': 'application/json',
+            'User-Agent': 'PlaneFinder/1.0',
+          },
+        })
+
+        const responseText = await response.text()
+
+        results.push({
+          url: testUrl,
+          status: response.status,
+          success: response.ok,
+          response: responseText.substring(0, 500)
+        })
+
+        if (response.ok) {
+          break // Stop on first success
+        }
+      } catch (error) {
+        results.push({
+          url: testUrl,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        })
+      }
+    }
 
     return NextResponse.json({
       apiKeyPresent: !!apiKey,
       apiKeyPrefix: apiKey.substring(0, 8),
-      url: testUrl,
-      status: response.status,
-      statusText: response.statusText,
-      headers: Object.fromEntries(response.headers),
-      response: responseText.substring(0, 2000),
-      success: response.ok
+      results: results
     })
 
   } catch (error) {
