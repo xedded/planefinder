@@ -40,15 +40,21 @@ export function PlaneFinder() {
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null)
   const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested' | 'prompt'>('not-requested')
 
-  const getUserLocation = () => {
+  const getUserLocation = useCallback(() => {
+    console.log('getUserLocation called')
+
     if (!navigator.geolocation) {
-      setError('Geolocation is not supported by this browser')
+      setError('Geolocation stöds inte av denna webbläsare')
       setLoading(false)
       return
     }
 
+    console.log('Requesting geolocation permission...')
+
+    // First try with high accuracy and shorter timeout for iOS Safari
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        console.log('Location received:', position.coords)
         setUserPosition({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -57,12 +63,49 @@ export function PlaneFinder() {
         setLoading(false)
       },
       (error) => {
-        setError(`Location error: ${error.message}`)
+        console.error('Geolocation error:', error)
+        let errorMessage = 'Kunde inte hämta din position. '
+
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage += 'Du har nekat åtkomst till din position. Aktivera platsåtkomst i Safari-inställningar.'
+            break
+          case error.POSITION_UNAVAILABLE:
+            errorMessage += 'Din position är inte tillgänglig för tillfället.'
+            break
+          case error.TIMEOUT:
+            errorMessage += 'Timeout - försöker igen med lägre noggrannhet.'
+            // Try again with lower accuracy
+            setTimeout(() => {
+              navigator.geolocation.getCurrentPosition(
+                (position) => {
+                  console.log('Location received (low accuracy):', position.coords)
+                  setUserPosition({
+                    latitude: position.coords.latitude,
+                    longitude: position.coords.longitude,
+                  })
+                  setError('')
+                  setLoading(false)
+                },
+                (secondError) => {
+                  console.error('Second geolocation attempt failed:', secondError)
+                  setError('Kunde inte hämta din position. Kontrollera att platsåtkomst är aktiverat i Safari.')
+                  setLoading(false)
+                },
+                { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+              )
+            }, 1000)
+            return
+          default:
+            errorMessage += `Okänt fel: ${error.message}`
+        }
+
+        setError(errorMessage)
         setLoading(false)
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     )
-  }
+  }, [])
 
   const watchOrientation = useCallback(() => {
     if ('DeviceOrientationEvent' in window) {
@@ -187,8 +230,10 @@ export function PlaneFinder() {
         ),
       })) || []
 
-      aircraftWithDistance.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
-      setAircraft(aircraftWithDistance.slice(0, 3))
+      // Filter aircraft within 100km and take max 10 closest
+      const filteredAircraft = aircraftWithDistance.filter((plane: Aircraft) => plane.distance <= 100)
+      filteredAircraft.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
+      setAircraft(filteredAircraft.slice(0, 10))
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Error fetching aircraft:', err)
@@ -201,7 +246,7 @@ export function PlaneFinder() {
     if (orientationPermission === 'not-requested') {
       requestOrientationPermission()
     }
-  }, [orientationPermission, requestOrientationPermission])
+  }, [getUserLocation, orientationPermission, requestOrientationPermission])
 
   useEffect(() => {
     if (!userPosition) return
@@ -225,15 +270,27 @@ export function PlaneFinder() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">{error}</p>
-          <button
-            onClick={getUserLocation}
-            className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">📍</div>
+          <h2 className="text-xl font-bold text-blue-400 mb-4">Platsåtkomst krävs</h2>
+          <p className="text-red-400 mb-6 leading-relaxed">{error}</p>
+
+          <div className="space-y-3">
+            <button
+              onClick={getUserLocation}
+              className="w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold"
+            >
+              Försök igen
+            </button>
+
+            <div className="text-sm text-gray-400 border-t border-gray-700 pt-4 mt-4">
+              <p className="mb-2"><strong>För iOS Safari:</strong></p>
+              <p>1. Gå till Safari → Inställningar → Sekretess & säkerhet</p>
+              <p>2. Aktivera &quot;Platsbaserade tjänster&quot;</p>
+              <p>3. Ladda om sidan och tillåt platsåtkomst</p>
+            </div>
+          </div>
         </div>
       </div>
     )
@@ -299,7 +356,7 @@ export function PlaneFinder() {
                 {/* Aircraft on radar */}
                 {aircraft.map((plane) => {
                   const relativeBearing = (plane.bearing - userHeading + 360) % 360
-                  const radarDistance = Math.min((plane.distance / 50) * 140, 140) // Scale to radar size, max 50km range
+                  const radarDistance = Math.min((plane.distance / 150) * 140, 140) // Scale to radar size, max 150km range
                   const x = 160 + radarDistance * Math.sin((relativeBearing * Math.PI) / 180)
                   const y = 160 - radarDistance * Math.cos((relativeBearing * Math.PI) / 180)
 
@@ -344,7 +401,7 @@ export function PlaneFinder() {
 
             <div className="text-center space-y-2">
               <div className="text-sm text-gray-400">
-                Räckvidd: 50km • Riktning: {userHeading.toFixed(0)}°
+                Visar plan inom 100km • Max räckvidd: 150km • Riktning: {userHeading.toFixed(0)}°
               </div>
 
               {orientationPermission === 'not-requested' && (
