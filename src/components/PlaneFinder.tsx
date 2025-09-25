@@ -21,6 +21,9 @@ interface Aircraft {
   aircraft?: string
   origin?: string
   destination?: string
+  registration?: string
+  aircraftType?: string
+  image?: string | null
   distance: number
   bearing: number
 }
@@ -35,6 +38,8 @@ export function PlaneFinder() {
   const [showSettings, setShowSettings] = useState(false)
   const [isRealData, setIsRealData] = useState<boolean | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
+  const [expandedAircraft, setExpandedAircraft] = useState<string | null>(null)
+  const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested'>('not-requested')
 
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -60,11 +65,37 @@ export function PlaneFinder() {
     )
   }
 
+  const requestOrientationPermission = async () => {
+    if (typeof DeviceOrientationEvent !== 'undefined' && 'requestPermission' in DeviceOrientationEvent) {
+      try {
+        const permission = await (DeviceOrientationEvent as any).requestPermission()
+        setOrientationPermission(permission)
+        if (permission === 'granted') {
+          watchOrientation()
+        }
+      } catch (error) {
+        console.error('Error requesting orientation permission:', error)
+        setOrientationPermission('denied')
+      }
+    } else {
+      // For non-iOS devices or older browsers
+      setOrientationPermission('granted')
+      watchOrientation()
+    }
+  }
+
   const watchOrientation = () => {
     if ('DeviceOrientationEvent' in window) {
       const handleOrientation = (event: DeviceOrientationEvent) => {
         if (event.alpha !== null) {
-          setUserHeading(event.alpha)
+          // Convert compass heading to match true north
+          let heading = event.alpha
+          if (event.webkitCompassHeading) {
+            heading = event.webkitCompassHeading // iOS gives us true north
+          } else {
+            heading = 360 - heading // Android gives us magnetic north, convert to true north
+          }
+          setUserHeading(heading)
         }
       }
 
@@ -93,6 +124,12 @@ export function PlaneFinder() {
     const x = Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon)
     const bearing = (Math.atan2(y, x) * 180) / Math.PI
     return (bearing + 360) % 360
+  }
+
+  const bearingToCompass = (bearing: number): string => {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    const index = Math.round(bearing / 22.5) % 16
+    return directions[index]
   }
 
   const fetchAircraft = useCallback(async () => {
@@ -144,9 +181,10 @@ export function PlaneFinder() {
 
   useEffect(() => {
     getUserLocation()
-    const cleanup = watchOrientation()
-    return cleanup
-  }, [])
+    if (orientationPermission === 'not-requested') {
+      requestOrientationPermission()
+    }
+  }, [orientationPermission])
 
   useEffect(() => {
     if (!userPosition) return
@@ -226,6 +264,35 @@ export function PlaneFinder() {
             userHeading={userHeading}
             distance={closestAircraft?.distance || 0}
           />
+
+          {closestAircraft && (
+            <div className="text-center text-sm text-gray-300 mt-4">
+              <div className="font-semibold">
+                {bearingToCompass(closestAircraft.bearing)} • {closestAircraft.bearing.toFixed(0)}°
+              </div>
+              <div className="text-xs text-gray-400">
+                Relativ riktning från din position
+              </div>
+            </div>
+          )}
+
+          {orientationPermission === 'not-requested' && (
+            <div className="text-center mt-4">
+              <button
+                onClick={requestOrientationPermission}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
+              >
+                Aktivera kompass
+              </button>
+            </div>
+          )}
+
+          {orientationPermission === 'denied' && (
+            <div className="text-center text-xs text-yellow-400 mt-4">
+              Kompassbehörighet nekad - kompass visar norr
+            </div>
+          )}
+
           {lastUpdate && (
             <div className="text-center text-xs text-gray-500 mt-4">
               Senast uppdaterad: {lastUpdate.toLocaleTimeString('sv-SE')}
@@ -247,11 +314,82 @@ export function PlaneFinder() {
             <h3 className="text-lg font-semibold mb-3">Other nearby aircraft:</h3>
             <div className="space-y-2">
               {aircraft.slice(1).map((plane) => (
-                <div key={plane.id} className="bg-slate-800 p-3 rounded-lg text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-mono">{plane.callsign || plane.id}</span>
-                    <span className="text-gray-400">{plane.distance.toFixed(1)} km</span>
-                  </div>
+                <div key={plane.id} className="bg-slate-800 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedAircraft(expandedAircraft === plane.id ? null : plane.id)}
+                    className="w-full p-3 text-left hover:bg-slate-700 transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="font-mono text-blue-400">{plane.callsign || plane.id}</div>
+                        <div className="text-xs text-gray-400">
+                          {bearingToCompass(plane.bearing)} • {plane.bearing.toFixed(0)}°
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-white">{plane.distance.toFixed(1)} km</div>
+                        <div className="text-xs text-gray-400">
+                          {expandedAircraft === plane.id ? '▲' : '▼'}
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {expandedAircraft === plane.id && (
+                    <div className="px-3 pb-3 border-t border-slate-700">
+                      {plane.image && (
+                        <div className="flex justify-center py-3">
+                          <img
+                            src={plane.image}
+                            alt={plane.aircraftType || 'Aircraft'}
+                            className="max-w-full h-24 object-contain rounded"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none'
+                            }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-3 text-xs mt-3">
+                        <div>
+                          <div className="text-gray-400">Aircraft</div>
+                          <div className="font-mono text-white">
+                            {plane.aircraftType || plane.aircraft || 'Unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Registration</div>
+                          <div className="font-mono text-white">
+                            {plane.registration || 'Unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Altitude</div>
+                          <div className="font-mono text-white">
+                            {plane.altitude ? `${plane.altitude.toLocaleString()} ft` : 'Unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Speed</div>
+                          <div className="font-mono text-white">
+                            {plane.speed ? `${Math.round(plane.speed)} kts` : 'Unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Heading</div>
+                          <div className="font-mono text-white">
+                            {plane.heading ? `${Math.round(plane.heading)}°` : 'Unknown'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-gray-400">Route</div>
+                          <div className="font-mono text-white text-xs">
+                            {(plane.origin || 'Unknown')} → {(plane.destination || 'Unknown')}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
