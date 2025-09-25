@@ -9,7 +9,11 @@ export async function GET() {
     }
 
     // Test multiple API endpoints with different auth methods
-    const tests = [
+    const tests: Array<{
+      name: string;
+      url: string;
+      headers: Record<string, string>;
+    }> = [
       {
         name: 'RapidAPI format',
         url: 'https://fr24api.flightradar24.com/common/v1/search.json?query=test&limit=1',
