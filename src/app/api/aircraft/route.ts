@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
+  let latitude: number
+  let longitude: number
+
   try {
-    const { latitude, longitude } = await request.json()
+    const body = await request.json()
+    latitude = body.latitude
+    longitude = body.longitude
 
     if (!latitude || !longitude) {
       return NextResponse.json(
@@ -112,6 +117,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('General API error:', error)
+
     return NextResponse.json({
       aircraft: [
         {
