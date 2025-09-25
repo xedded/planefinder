@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CompassArrow } from './CompassArrow'
 import { AircraftInfo } from './AircraftInfo'
 import { Settings } from './Settings'
@@ -93,7 +93,7 @@ export function PlaneFinder() {
     return (bearing + 360) % 360
   }
 
-  const fetchAircraft = async () => {
+  const fetchAircraft = useCallback(async () => {
     if (!userPosition) return
 
     try {
@@ -112,7 +112,7 @@ export function PlaneFinder() {
 
       const data = await response.json()
 
-      const aircraftWithDistance = data.aircraft?.map((plane: any) => ({
+      const aircraftWithDistance = data.aircraft?.map((plane: Aircraft) => ({
         ...plane,
         distance: calculateDistance(
           userPosition.latitude,
@@ -134,7 +134,7 @@ export function PlaneFinder() {
       console.error('Error fetching aircraft:', err)
       setError('Failed to fetch aircraft data')
     }
-  }
+  }, [userPosition])
 
   useEffect(() => {
     getUserLocation()
@@ -148,7 +148,7 @@ export function PlaneFinder() {
     fetchAircraft()
     const interval = setInterval(fetchAircraft, updateInterval * 1000)
     return () => clearInterval(interval)
-  }, [userPosition, updateInterval])
+  }, [userPosition, updateInterval, fetchAircraft])
 
   const closestAircraft = aircraft[0]
 

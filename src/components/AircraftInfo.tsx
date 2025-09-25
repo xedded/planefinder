@@ -1,5 +1,7 @@
 'use client'
 
+import Image from 'next/image'
+
 interface Aircraft {
   id: string
   latitude: number
@@ -59,9 +61,11 @@ export function AircraftInfo({ aircraft }: AircraftInfoProps) {
 
       {aircraft.image && (
         <div className="flex justify-center">
-          <img
+          <Image
             src={aircraft.image}
             alt={aircraft.aircraftType || 'Aircraft'}
+            width={200}
+            height={128}
             className="max-w-full h-32 object-contain rounded"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none'

@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     const data = await response.json()
 
-    const aircraft = data.results?.aircraft?.map((plane: any) => ({
+    const aircraft = data.results?.aircraft?.map((plane: Record<string, unknown>) => ({
       id: plane.hex || plane.id,
       latitude: plane.lat,
       longitude: plane.lon,
