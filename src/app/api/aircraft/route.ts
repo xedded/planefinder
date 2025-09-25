@@ -137,14 +137,18 @@ export async function POST(request: NextRequest) {
       // Based on API testing, try these working endpoint formats
       const radius = 3.0  // Larger radius for more aircraft
 
-      // Official FlightRadar24 API endpoints for authenticated requests
+      // Test different potential FlightRadar24 API endpoints
       const endpoints = [
-        // Official flight positions endpoint
-        `https://fr24api.flightradar24.com/common/v1/search.json?lat=${latitude}&lon=${longitude}&radius=50`,
-        // Zone/bounds based search
-        `https://fr24api.flightradar24.com/common/v1/search.json?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
-        // Flight list endpoint
-        `https://fr24api.flightradar24.com/flights/list?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
+        // Try v1 flights endpoint
+        `https://fr24api.flightradar24.com/v1/flights?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Try flights search
+        `https://fr24api.flightradar24.com/flights/search?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`,
+        // Try common flights endpoint
+        `https://fr24api.flightradar24.com/common/v1/flights?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`,
+        // Try live feed endpoint
+        `https://fr24api.flightradar24.com/live/v1/flights?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Original search endpoint
+        `https://fr24api.flightradar24.com/common/v1/search.json?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`
       ]
 
       let response: Response | null = null
@@ -173,12 +177,14 @@ export async function POST(request: NextRequest) {
           clearTimeout(timeoutId)
 
           if (response.ok) {
-            console.log(`✅ Success with endpoint: ${apiUrl}`)
+            console.log(`✅ SUCCESS: ${apiUrl} returned ${response.status}`)
             break
           } else {
             const errorText = await response.text()
-            console.log(`❌ Failed with status ${response.status} for endpoint: ${apiUrl}`)
-            console.log(`Error response: ${errorText.substring(0, 200)}`)
+            console.log(`❌ FAILED: ${apiUrl}`)
+            console.log(`   Status: ${response.status} ${response.statusText}`)
+            console.log(`   Headers: ${JSON.stringify(Object.fromEntries(response.headers))}`)
+            console.log(`   Response: ${errorText.substring(0, 300)}`)
             response = null
           }
         } catch (endpointError) {
