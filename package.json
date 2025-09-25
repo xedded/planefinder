@@ -1,6 +1,7 @@
 {
   "name": "planefinder",
   "version": "0.1.0",
+  "description": "Mobile web app to find nearby aircraft using FlightRadar24 API",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
