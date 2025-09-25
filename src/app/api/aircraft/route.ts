@@ -102,16 +102,8 @@ export async function POST(request: NextRequest) {
           const aircraft = aircraftEntries.slice(0, 10).map(([id, data]) => {
             const aircraftArray = data as unknown[]
 
-            // Log raw data for debugging and analysis
-            console.log(`Aircraft ${id}:`)
-            console.log('Full array length:', aircraftArray.length)
-            console.log('Array content:', aircraftArray)
-            console.log('Index mapping:')
-            aircraftArray.forEach((item, index) => {
-              if (item !== null && item !== undefined && item !== '') {
-                console.log(`  [${index}]: ${item}`)
-              }
-            })
+            // Log basic info for debugging
+            console.log(`Aircraft ${id}: array length ${aircraftArray.length}`)
 
             const parsedAlt = parseInt(aircraftArray[4] as string)
             const parsedSpeed = parseInt(aircraftArray[5] as string)
@@ -146,7 +138,6 @@ export async function POST(request: NextRequest) {
               image: undefined
             }
 
-            console.log('Parsed result:', result)
             return result
           }).filter(aircraft =>
             aircraft.latitude !== latitude && aircraft.longitude !== longitude &&

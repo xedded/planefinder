@@ -43,7 +43,6 @@ export function PlaneFinder() {
   const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested' | 'prompt'>('not-requested')
 
   const getUserLocation = useCallback(() => {
-    console.log('getUserLocation called')
 
     if (!navigator.geolocation) {
       setError('Geolocation stöds inte av denna webbläsare')
@@ -51,12 +50,10 @@ export function PlaneFinder() {
       return
     }
 
-    console.log('Requesting geolocation permission...')
 
     // First try with high accuracy and shorter timeout for iOS Safari
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        console.log('Location received:', position.coords)
         setUserPosition({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -81,7 +78,6 @@ export function PlaneFinder() {
             setTimeout(() => {
               navigator.geolocation.getCurrentPosition(
                 (position) => {
-                  console.log('Location received (low accuracy):', position.coords)
                   setUserPosition({
                     latitude: position.coords.latitude,
                     longitude: position.coords.longitude,
@@ -112,8 +108,6 @@ export function PlaneFinder() {
   const watchOrientation = useCallback(() => {
     if ('DeviceOrientationEvent' in window) {
       const handleOrientation = (event: DeviceOrientationEvent) => {
-        console.log('Orientation event:', { alpha: event.alpha, beta: event.beta, gamma: event.gamma })
-
         if (event.alpha !== null && event.alpha !== undefined) {
           let heading = event.alpha
           const eventWithWebkit = event as DeviceOrientationEvent & { webkitCompassHeading?: number }
@@ -121,28 +115,20 @@ export function PlaneFinder() {
           if (eventWithWebkit.webkitCompassHeading !== undefined) {
             // iOS with webkit compass heading (true north)
             heading = eventWithWebkit.webkitCompassHeading
-            console.log('Using webkit compass heading:', heading)
           } else {
             // Android or other devices (magnetic north)
             heading = 360 - heading
-            console.log('Using converted heading:', heading)
           }
 
           setUserHeading(heading)
-        } else {
-          console.log('No alpha value available')
         }
       }
 
-      console.log('Adding device orientation listener')
       window.addEventListener('deviceorientation', handleOrientation, true)
 
       return () => {
-        console.log('Removing device orientation listener')
         window.removeEventListener('deviceorientation', handleOrientation, true)
       }
-    } else {
-      console.log('DeviceOrientationEvent not supported')
     }
   }, [])
 
@@ -154,7 +140,6 @@ export function PlaneFinder() {
       try {
         // For iOS 13+ that requires permission
         const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<PermissionState> }).requestPermission()
-        console.log('iOS permission result:', permission)
         setOrientationPermission(permission)
         if (permission === 'granted') {
           watchOrientation()
@@ -165,7 +150,6 @@ export function PlaneFinder() {
       }
     } else {
       // For Android and older iOS versions - try to use directly
-      console.log('Non-iOS device or older iOS - granting permission automatically')
       setOrientationPermission('granted')
       watchOrientation()
     }
@@ -198,7 +182,6 @@ export function PlaneFinder() {
     if (!userPosition) return
 
     try {
-      console.log('Fetching aircraft data...')
       const response = await fetch('/api/aircraft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,7 +196,6 @@ export function PlaneFinder() {
       }
 
       const data = await response.json()
-      console.log('Received aircraft data:', data)
 
       // Check if this is real data or demo data
       setIsRealData(data.isRealData ?? null)
@@ -234,7 +216,6 @@ export function PlaneFinder() {
         ),
       })) || []
 
-      console.log('Aircraft with distance:', aircraftWithDistance.length)
 
       // Create a map of new aircraft data
       const newAircraftMap = new Map<string, Aircraft>()
@@ -265,8 +246,6 @@ export function PlaneFinder() {
       filteredAircraft.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
 
       const finalAircraft = filteredAircraft.slice(0, 10)
-      console.log('Final aircraft count:', finalAircraft.length)
-      console.log('Aircraft IDs:', finalAircraft.map(a => a.id))
 
       setLastKnownAircraft(mergedAircraftMap)
       setAircraft(finalAircraft)
