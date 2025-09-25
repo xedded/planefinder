@@ -3,12 +3,12 @@
 async function testAPI() {
   try {
     console.log('Testing API with test coordinates...');
-    const response = await fetch('https://planefinder-hsxkgdb0g-xeddeds-projects.vercel.app/api/aircraft', {
+    const response = await fetch('https://planefinder-qz23o2qqj-xeddeds-projects.vercel.app/api/aircraft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        latitude: 59.3293,  // Stockholm coordinates
-        longitude: 18.0686
+        latitude: 51.4700,  // London Heathrow - guaranteed to have aircraft
+        longitude: -0.4543
       })
     });
 
