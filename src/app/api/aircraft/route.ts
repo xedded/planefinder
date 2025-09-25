@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
                 return (obj.lat !== undefined && obj.lon !== undefined)
               })
 
-              const fallbackAircraft = fallbackAircraftData.slice(0, 10).map((plane: Record<string, unknown> | unknown[], index: number) => {
+              const fallbackAircraft = fallbackAircraftData.slice(0, 10).map((plane: unknown, index: number) => {
                 const planeObj = Array.isArray(plane) ? {} : plane as Record<string, unknown>
                 const planeArray = Array.isArray(plane) ? plane : []
 
