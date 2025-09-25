@@ -134,12 +134,17 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Try multiple potential API endpoints with very large search radius
-      const radius = 2.0  // ~200km radius - should find aircraft anywhere in region
+      // Use the official FlightRadar24 API endpoints for Explorer plan
+      const radius = 1.0  // ~100km radius
+
+      // Official API endpoints based on Explorer plan documentation
       const endpoints = [
-        `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
-        `https://api.flightradar24.com/v1/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
-        `https://api.flightradar24.com/v2/aircraft?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
+        // Flight positions endpoint with bounds parameter (most likely correct)
+        `https://fr24api.flightradar24.com/api/flights/positions?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Alternative endpoint format
+        `https://fr24api.flightradar24.com/api/v1/flights/positions?lat=${latitude}&lon=${longitude}&radius=${radius * 111}`, // Convert degrees to km
+        // Legacy format fallback
+        `https://fr24api.flightradar24.com/common/v1/search.json?lat=${latitude}&lon=${longitude}&radius=${radius * 111}`
       ]
 
       let response: Response | null = null
@@ -153,6 +158,8 @@ export async function POST(request: NextRequest) {
 
           response = await fetch(apiUrl, {
             headers: {
+              'X-RapidAPI-Key': apiKey,
+              'X-RapidAPI-Host': 'fr24api.flightradar24.com',
               'Authorization': `Bearer ${apiKey}`,
               'User-Agent': 'PlaneFinder/1.0',
               'Accept': 'application/json',
@@ -184,10 +191,18 @@ export async function POST(request: NextRequest) {
       console.log('API Response keys:', Object.keys(data))
       console.log('API Response sample:', JSON.stringify(data, null, 2).substring(0, 1000))
 
-      // Handle different response formats from different endpoints
+      // Handle Explorer API response format
       let aircraftData = []
 
-      if (data.aircraft && Array.isArray(data.aircraft)) {
+      if (data.data && Array.isArray(data.data)) {
+        // Explorer API format: { data: [...], pagination: {...} }
+        aircraftData = data.data
+        console.log('Using Explorer API data array format, found:', aircraftData.length, 'items')
+      } else if (data.flights && Array.isArray(data.flights)) {
+        // Alternative format: { flights: [...] }
+        aircraftData = data.flights
+        console.log('Using flights array format, found:', aircraftData.length, 'items')
+      } else if (data.aircraft && Array.isArray(data.aircraft)) {
         // Standard aircraft array format
         aircraftData = data.aircraft
         console.log('Using aircraft array format, found:', aircraftData.length, 'items')
@@ -195,26 +210,21 @@ export async function POST(request: NextRequest) {
         // Direct array format
         aircraftData = data
         console.log('Using direct array format, found:', aircraftData.length, 'items')
-      } else if (data.states && Array.isArray(data.states)) {
-        // OpenSky format
-        aircraftData = data.states
-        console.log('Using OpenSky states format, found:', aircraftData.length, 'items')
       } else if (typeof data === 'object' && data !== null) {
-        // FlightRadar24 zones format - extract aircraft from object values
-        const allValues = Object.values(data)
-        console.log('Object format detected, total values:', allValues.length)
+        // Object format - check for flights in object properties
+        const objectValues = Object.values(data)
+        console.log('Object format detected, checking', objectValues.length, 'values')
 
-        // Check if any values look like aircraft (have lat/lon or position data)
-        aircraftData = allValues.filter((item: unknown) => {
+        aircraftData = objectValues.filter((item: unknown) => {
           if (!item || typeof item !== 'object') return false
           const obj = item as Record<string, unknown>
 
-          // Check various possible coordinate field names
-          return (obj.lat !== undefined && obj.lon !== undefined) ||
-                 (obj.latitude !== undefined && obj.longitude !== undefined) ||
-                 (Array.isArray(obj) && obj.length > 2 && typeof obj[1] === 'number' && typeof obj[2] === 'number')
+          // Check for flight object properties
+          return (obj.latitude !== undefined && obj.longitude !== undefined) ||
+                 (obj.lat !== undefined && obj.lon !== undefined) ||
+                 (obj.position && typeof obj.position === 'object')
         })
-        console.log('Filtered aircraft-like objects:', aircraftData.length)
+        console.log('Found aircraft objects:', aircraftData.length)
       }
 
       console.log('Final aircraftData length:', aircraftData.length)
@@ -222,32 +232,34 @@ export async function POST(request: NextRequest) {
         console.log('Sample aircraft object:', JSON.stringify(aircraftData[0], null, 2))
       }
 
-      const aircraft = aircraftData.slice(0, 10).map((plane: Record<string, unknown> | unknown[], index: number) => {
-        const planeObj = Array.isArray(plane) ? {} : plane as Record<string, unknown>
-        const planeArray = Array.isArray(plane) ? plane : []
+      const aircraft = aircraftData.slice(0, 10).map((plane: Record<string, unknown>, index: number) => {
+        // Handle Explorer API object format
+        const position = plane.position as Record<string, unknown> || plane
+        const flight = plane.flight as Record<string, unknown> || plane
+        const aircraft_info = plane.aircraft as Record<string, unknown> || plane
 
-        const aircraftId = planeObj.hex || planeObj.icao || planeArray[0] || `aircraft-${index}`
-        const lat = parseFloat((planeObj.lat || planeObj.latitude || planeArray[1]) as string)
-        const lon = parseFloat((planeObj.lon || planeObj.longitude || planeArray[2]) as string)
+        const aircraftId = (plane.id || plane.hex || plane.icao || aircraft_info.hex || `aircraft-${index}`) as string
+        const lat = parseFloat((position.latitude || position.lat || plane.latitude || plane.lat || 0) as string)
+        const lon = parseFloat((position.longitude || position.lon || plane.longitude || plane.lon || 0) as string)
 
         return {
-        id: aircraftId,
-        latitude: lat || latitude,
-        longitude: lon || longitude,
-        altitude: parseInt((planeObj.alt || planeObj.altitude || planeArray[3] || 0) as string) || 0,
-        speed: parseInt((planeObj.spd || planeObj.speed || planeArray[5] || 0) as string) || 0,
-        heading: parseInt((planeObj.hdg || planeObj.heading || planeArray[4] || 0) as string) || 0,
-        callsign: (planeObj.call || planeObj.callsign || planeArray[16] || 'Unknown') as string,
-        aircraft: (planeObj.type || planeObj.aircraft || planeArray[8] || 'Unknown') as string,
-        origin: (planeObj.from || planeObj.origin || 'Unknown') as string,
-        destination: (planeObj.to || planeObj.destination || 'Unknown') as string,
-        registration: (planeObj.reg || planeObj.registration || 'Unknown') as string,
-        aircraftType: (planeObj.aircraft_type || planeObj.type || 'Aircraft') as string,
-        // Try to get aircraft image from various possible sources
-        image: (planeObj.image || planeObj.photo || planeObj.pic ||
-                `https://www.flightradar24.com/aircrafts/${aircraftId}` || null) as string | null
-      }}).filter((aircraft: { latitude: number; longitude: number }) =>
-        aircraft.latitude !== latitude && aircraft.longitude !== longitude
+          id: aircraftId,
+          latitude: lat || latitude,
+          longitude: lon || longitude,
+          altitude: parseInt((position.altitude || plane.altitude || 0) as string) || 0,
+          speed: parseInt((position.speed || plane.speed || 0) as string) || 0,
+          heading: parseInt((position.heading || position.track || plane.heading || 0) as string) || 0,
+          callsign: (flight.callsign || plane.callsign || 'Unknown') as string,
+          aircraft: (aircraft_info.model || aircraft_info.type || plane.aircraft || 'Unknown') as string,
+          origin: (flight.origin || plane.origin || 'Unknown') as string,
+          destination: (flight.destination || plane.destination || 'Unknown') as string,
+          registration: (aircraft_info.registration || plane.registration || 'Unknown') as string,
+          aircraftType: (aircraft_info.model || aircraft_info.type || plane.aircraft_type || 'Aircraft') as string,
+          image: (aircraft_info.image || plane.image || null) as string | null
+        }
+      }).filter((aircraft: { latitude: number; longitude: number }) =>
+        aircraft.latitude !== latitude && aircraft.longitude !== longitude &&
+        aircraft.latitude !== 0 && aircraft.longitude !== 0
       )
 
       console.log(`Found ${aircraft.length} real aircraft from FlightRadar24`)
