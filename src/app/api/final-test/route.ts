@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const apiKey = process.env.FR24_API_TOKEN
+    const rawApiKey = process.env.FR24_API_TOKEN
+    // Extract the token part after the pipe separator
+    const apiKey = rawApiKey?.includes('|') ? rawApiKey.split('|')[1] : rawApiKey
 
     if (!apiKey) {
       return NextResponse.json({
