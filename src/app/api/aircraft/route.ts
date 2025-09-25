@@ -65,6 +65,69 @@ export async function POST(request: NextRequest) {
     })
 
     const apiKey = process.env.FLIGHTRADAR24_API_KEY
+
+    // Try the public FlightRadar24 API first (no auth required)
+    console.log('Trying public FlightRadar24 API first...')
+
+    try {
+      const publicUrl = `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + 1},${latitude - 1},${longitude - 1},${longitude + 1}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`
+
+      const publicResponse = await fetch(publicUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; PlaneFinder/1.0)',
+          'Accept': 'application/json',
+          'Referer': 'https://www.flightradar24.com/',
+        },
+      })
+
+      if (publicResponse.ok) {
+        const publicData = await publicResponse.json()
+        console.log('Public API response keys:', Object.keys(publicData))
+        console.log('Public API aircraft count:', publicData.full_count || 0)
+
+        if (publicData && typeof publicData === 'object') {
+          // FlightRadar24 public API returns aircraft as object properties, not array
+          const aircraftEntries = Object.entries(publicData).filter(([key, value]) =>
+            key !== 'full_count' && key !== 'version' && key !== 'stats' &&
+            value && typeof value === 'object' && Array.isArray(value)
+          )
+
+          console.log('Found aircraft entries:', aircraftEntries.length)
+
+          const aircraft = aircraftEntries.slice(0, 10).map(([id, data], index) => {
+            const aircraftArray = data as unknown[]
+
+            return {
+              id: id,
+              latitude: parseFloat(aircraftArray[1] as string) || latitude,
+              longitude: parseFloat(aircraftArray[2] as string) || longitude,
+              altitude: parseInt(aircraftArray[4] as string) || 0,
+              speed: parseInt(aircraftArray[5] as string) || 0,
+              heading: parseInt(aircraftArray[3] as string) || 0,
+              callsign: (aircraftArray[16] as string) || 'Unknown',
+              aircraft: (aircraftArray[8] as string) || 'Unknown',
+              origin: (aircraftArray[11] as string) || 'Unknown',
+              destination: (aircraftArray[12] as string) || 'Unknown',
+              registration: (aircraftArray[9] as string) || 'Unknown',
+              aircraftType: (aircraftArray[8] as string) || 'Aircraft',
+              image: null
+            }
+          }).filter(aircraft =>
+            aircraft.latitude !== latitude && aircraft.longitude !== longitude &&
+            aircraft.latitude !== 0 && aircraft.longitude !== 0
+          )
+
+          console.log(`Found ${aircraft.length} aircraft from public API`)
+
+          if (aircraft.length > 0) {
+            return NextResponse.json({ aircraft, isRealData: true })
+          }
+        }
+      }
+    } catch (publicError) {
+      console.log('Public API failed:', publicError)
+    }
+
     if (!apiKey) {
       console.log('No API key configured, returning demo data')
       return NextResponse.json(getDemoData())
