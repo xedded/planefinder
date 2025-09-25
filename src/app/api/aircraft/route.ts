@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
 
           console.log('Found aircraft entries:', aircraftEntries.length)
 
-          const aircraft = aircraftEntries.slice(0, 10).map(([id, data], index) => {
+          const aircraft = aircraftEntries.slice(0, 10).map(([id, data]) => {
             const aircraftArray = data as unknown[]
 
             return {

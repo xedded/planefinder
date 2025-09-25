@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const apiKey = process.env.FLIGHTRADAR24_API_KEY
+    const apiKey = process.env.FR24_API_TOKEN
 
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key found' })
@@ -59,7 +59,7 @@ export async function GET() {
         let parsed = null
         try {
           parsed = JSON.parse(text)
-        } catch (e) {
+        } catch {
           parsed = { parseError: 'Could not parse JSON', raw: text.substring(0, 200) }
         }
 

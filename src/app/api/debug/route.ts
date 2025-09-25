@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     let publicData;
     try {
       publicData = JSON.parse(publicText)
-    } catch (parseError) {
+    } catch {
       publicData = { error: 'Could not parse as JSON', raw: publicText.substring(0, 1000) }
     }
 
@@ -77,12 +77,12 @@ export async function POST(request: NextRequest) {
     let parsedData;
     try {
       parsedData = JSON.parse(responseText)
-    } catch (parseError) {
+    } catch {
       parsedData = { error: 'Could not parse as JSON', raw: responseText.substring(0, 1000) }
     }
 
     return NextResponse.json({
-      url: testUrl,
+      url: publicUrl,
       status: response.status,
       headers: Object.fromEntries(response.headers),
       rawResponse: responseText.substring(0, 2000),

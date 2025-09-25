@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
@@ -33,7 +33,7 @@ export async function GET() {
     let parsedResponse
     try {
       parsedResponse = JSON.parse(responseText)
-    } catch (e) {
+    } catch {
       parsedResponse = { error: 'Could not parse JSON', raw: responseText }
     }
 
