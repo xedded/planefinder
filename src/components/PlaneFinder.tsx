@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Image from 'next/image'
 import { CompassArrow } from './CompassArrow'
 import { AircraftInfo } from './AircraftInfo'
 import { Settings } from './Settings'
@@ -68,7 +69,7 @@ export function PlaneFinder() {
   const requestOrientationPermission = async () => {
     if (typeof DeviceOrientationEvent !== 'undefined' && 'requestPermission' in DeviceOrientationEvent) {
       try {
-        const permission = await (DeviceOrientationEvent as any).requestPermission()
+        const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<PermissionState> }).requestPermission()
         setOrientationPermission(permission)
         if (permission === 'granted') {
           watchOrientation()
@@ -184,7 +185,7 @@ export function PlaneFinder() {
     if (orientationPermission === 'not-requested') {
       requestOrientationPermission()
     }
-  }, [orientationPermission])
+  }, [])
 
   useEffect(() => {
     if (!userPosition) return
@@ -339,9 +340,11 @@ export function PlaneFinder() {
                     <div className="px-3 pb-3 border-t border-slate-700">
                       {plane.image && (
                         <div className="flex justify-center py-3">
-                          <img
+                          <Image
                             src={plane.image}
                             alt={plane.aircraftType || 'Aircraft'}
+                            width={200}
+                            height={96}
                             className="max-w-full h-24 object-contain rounded"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none'
