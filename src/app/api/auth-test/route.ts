@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const apiKey = process.env.FR24_API_TOKEN
+    const rawApiKey = process.env.FR24_API_TOKEN
+    // Extract the token part after the pipe separator
+    const apiKey = rawApiKey?.includes('|') ? rawApiKey.split('|')[1] : rawApiKey
 
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key' })
@@ -11,7 +13,10 @@ export async function GET() {
     // Test one simple endpoint with different authentication methods
     const testEndpoint = 'https://fr24api.flightradar24.com/v1/flights?bounds=52.4700,50.4700,-1.4543,0.5457'
 
-    const authMethods = [
+    const authMethods: Array<{
+      name: string;
+      headers: Record<string, string>;
+    }> = [
       {
         name: 'Bearer Token',
         headers: {
