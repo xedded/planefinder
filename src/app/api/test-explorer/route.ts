@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const apiKey = process.env.FLIGHTRADAR24_API_KEY
+    const apiKey = process.env.FR24_API_TOKEN
 
     if (!apiKey) {
       return NextResponse.json({ error: 'No API key found' })

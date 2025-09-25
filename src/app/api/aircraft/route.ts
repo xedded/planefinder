@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       ]
     })
 
-    const apiKey = process.env.FLIGHTRADAR24_API_KEY
+    const apiKey = process.env.FR24_API_TOKEN
 
     // Try the public FlightRadar24 API first (no auth required)
     console.log('Trying public FlightRadar24 API first...')

@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If public API fails, test with API key
-    const apiKey = process.env.FLIGHTRADAR24_API_KEY
+    const apiKey = process.env.FR24_API_TOKEN
     if (!apiKey) {
       return NextResponse.json({
         error: 'Public API failed and no API key available',
