@@ -157,7 +157,7 @@ export async function POST(request: NextRequest) {
         registration: (planeObj.reg || planeObj.registration || 'Unknown') as string,
         aircraftType: (planeObj.aircraft_type || planeObj.type || 'Aircraft') as string,
         image: (planeObj.image || null) as string | null
-      }}).filter(aircraft =>
+      }}).filter((aircraft: { latitude: number; longitude: number }) =>
         aircraft.latitude !== latitude && aircraft.longitude !== longitude
       )
 
