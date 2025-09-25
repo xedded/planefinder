@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Try multiple potential API endpoints with larger search radius
-      const radius = 0.5  // ~50km radius
+      // Try multiple potential API endpoints with very large search radius
+      const radius = 2.0  // ~200km radius - should find aircraft anywhere in region
       const endpoints = [
         `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
         `https://api.flightradar24.com/v1/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
@@ -188,6 +188,69 @@ export async function POST(request: NextRequest) {
       )
 
       console.log(`Found ${aircraft.length} real aircraft from FlightRadar24`)
+
+      // If still no aircraft found, try with an even larger radius (covers most of Europe/continent)
+      if (aircraft.length === 0 && response) {
+        console.log('No aircraft found, trying with massive radius (~500km)')
+        const massiveRadius = 5.0
+        const fallbackUrl = `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + massiveRadius},${latitude - massiveRadius},${longitude - massiveRadius},${longitude + massiveRadius}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`
+
+        try {
+          const fallbackResponse = await fetch(fallbackUrl, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'User-Agent': 'PlaneFinder/1.0',
+              'Accept': 'application/json',
+            },
+          })
+
+          if (fallbackResponse.ok) {
+            const fallbackData = await fallbackResponse.json()
+            console.log('Fallback API Response keys:', Object.keys(fallbackData))
+
+            if (fallbackData && typeof fallbackData === 'object') {
+              const fallbackAircraftData = Object.values(fallbackData).filter((item: unknown) => {
+                if (!item || typeof item !== 'object') return false
+                const obj = item as Record<string, unknown>
+                return (obj.lat !== undefined && obj.lon !== undefined)
+              })
+
+              const fallbackAircraft = fallbackAircraftData.slice(0, 10).map((plane: Record<string, unknown> | unknown[], index: number) => {
+                const planeObj = Array.isArray(plane) ? {} : plane as Record<string, unknown>
+                const planeArray = Array.isArray(plane) ? plane : []
+
+                const aircraftId = planeObj.hex || planeObj.icao || planeArray[0] || `aircraft-${index}`
+                const lat = parseFloat((planeObj.lat || planeObj.latitude || planeArray[1]) as string)
+                const lon = parseFloat((planeObj.lon || planeObj.longitude || planeArray[2]) as string)
+
+                return {
+                  id: aircraftId,
+                  latitude: lat || latitude,
+                  longitude: lon || longitude,
+                  altitude: parseInt((planeObj.alt || planeObj.altitude || planeArray[3] || 0) as string) || 0,
+                  speed: parseInt((planeObj.spd || planeObj.speed || planeArray[5] || 0) as string) || 0,
+                  heading: parseInt((planeObj.hdg || planeObj.heading || planeArray[4] || 0) as string) || 0,
+                  callsign: (planeObj.call || planeObj.callsign || planeArray[16] || 'Unknown') as string,
+                  aircraft: (planeObj.type || planeObj.aircraft || planeArray[8] || 'Unknown') as string,
+                  origin: (planeObj.from || planeObj.origin || 'Unknown') as string,
+                  destination: (planeObj.to || planeObj.destination || 'Unknown') as string,
+                  registration: (planeObj.reg || planeObj.registration || 'Unknown') as string,
+                  aircraftType: (planeObj.aircraft_type || planeObj.type || 'Aircraft') as string,
+                  image: (planeObj.image || planeObj.photo || planeObj.pic || null) as string | null
+                }
+              }).filter((aircraft: { latitude: number; longitude: number }) =>
+                aircraft.latitude !== latitude && aircraft.longitude !== longitude
+              )
+
+              aircraft.push(...fallbackAircraft)
+              console.log(`Added ${fallbackAircraft.length} aircraft from fallback search`)
+            }
+          }
+        } catch (fallbackError) {
+          console.log('Fallback search failed:', fallbackError)
+        }
+      }
+
       return NextResponse.json({ aircraft, isRealData: true })
     } catch (apiError) {
       console.error('FlightRadar24 API fetch error:', apiError)
