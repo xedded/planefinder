@@ -102,34 +102,72 @@ export async function POST(request: NextRequest) {
           const aircraft = aircraftEntries.slice(0, 10).map(([id, data]) => {
             const aircraftArray = data as unknown[]
 
-            // Log raw data for debugging
-            console.log(`Aircraft ${id} raw data:`, aircraftArray)
+            // Log raw data for debugging and analysis
+            console.log(`Aircraft ${id}:`)
+            console.log('Full array length:', aircraftArray.length)
+            console.log('Array content:', aircraftArray)
+            console.log('Index mapping:')
+            aircraftArray.forEach((item, index) => {
+              if (item !== null && item !== undefined && item !== '') {
+                console.log(`  [${index}]: ${item}`)
+              }
+            })
 
             const parsedAlt = parseInt(aircraftArray[4] as string)
             const parsedSpeed = parseInt(aircraftArray[5] as string)
             const parsedHeading = parseInt(aircraftArray[3] as string)
 
-            return {
+            // Try multiple indices for callsign, origin, destination
+            const possibleCallsigns = [aircraftArray[16], aircraftArray[13], aircraftArray[17]]
+            const possibleOrigins = [aircraftArray[11], aircraftArray[12], aircraftArray[13]]
+            const possibleDestinations = [aircraftArray[12], aircraftArray[13], aircraftArray[14]]
+            const possibleAircraft = [aircraftArray[8], aircraftArray[9], aircraftArray[10]]
+            const possibleRegistrations = [aircraftArray[9], aircraftArray[10], aircraftArray[11]]
+
+            const callsign = possibleCallsigns.find(c => c && typeof c === 'string' && c.trim() && c !== '-' && c !== 'N/A') || 'Unknown'
+            const origin = possibleOrigins.find(o => o && typeof o === 'string' && o.trim() && o !== '-' && o !== 'N/A' && o.length >= 3) || 'Unknown'
+            const destination = possibleDestinations.find(d => d && typeof d === 'string' && d.trim() && d !== '-' && d !== 'N/A' && d.length >= 3) || 'Unknown'
+            const aircraftType = possibleAircraft.find(a => a && typeof a === 'string' && a.trim() && a !== '-' && a !== 'N/A') || 'Aircraft'
+            const registration = possibleRegistrations.find(r => r && typeof r === 'string' && r.trim() && r !== '-' && r !== 'N/A') || 'Unknown'
+
+            const result = {
               id: id,
               latitude: parseFloat(aircraftArray[1] as string) || latitude,
               longitude: parseFloat(aircraftArray[2] as string) || longitude,
               altitude: isNaN(parsedAlt) ? undefined : parsedAlt,
               speed: isNaN(parsedSpeed) ? undefined : parsedSpeed,
               heading: isNaN(parsedHeading) ? undefined : parsedHeading,
-              callsign: (aircraftArray[16] as string)?.trim() || (aircraftArray[13] as string)?.trim() || 'Unknown',
-              aircraft: (aircraftArray[8] as string)?.trim() || 'Unknown',
-              origin: (aircraftArray[11] as string)?.trim() || 'Unknown',
-              destination: (aircraftArray[12] as string)?.trim() || 'Unknown',
-              registration: (aircraftArray[9] as string)?.trim() || 'Unknown',
-              aircraftType: (aircraftArray[8] as string)?.trim() || 'Aircraft',
+              callsign: (callsign as string)?.trim() || 'Unknown',
+              aircraft: (aircraftType as string)?.trim() || 'Aircraft',
+              origin: (origin as string)?.trim() || 'Unknown',
+              destination: (destination as string)?.trim() || 'Unknown',
+              registration: (registration as string)?.trim() || 'Unknown',
+              aircraftType: (aircraftType as string)?.trim() || 'Aircraft',
               image: undefined
             }
+
+            console.log('Parsed result:', result)
+            return result
           }).filter(aircraft =>
             aircraft.latitude !== latitude && aircraft.longitude !== longitude &&
             aircraft.latitude !== 0 && aircraft.longitude !== 0
           )
 
           console.log(`Found ${aircraft.length} aircraft from public API`)
+          console.log('Sample aircraft data:', aircraft.length > 0 ? aircraft[0] : 'No aircraft')
+
+          // Log aircraft with missing data
+          const missingData = aircraft.filter(a => !a.speed || !a.altitude || a.origin === 'Unknown' || a.destination === 'Unknown')
+          if (missingData.length > 0) {
+            console.log(`${missingData.length} aircraft missing data:`, missingData.map(a => ({
+              id: a.id,
+              callsign: a.callsign,
+              speed: a.speed,
+              altitude: a.altitude,
+              origin: a.origin,
+              destination: a.destination
+            })))
+          }
 
           if (aircraft.length > 0) {
             return NextResponse.json({ aircraft, isRealData: true })

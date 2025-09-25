@@ -25,12 +25,14 @@ interface Aircraft {
   image?: string
   distance: number
   bearing: number
+  lastSeen?: number
 }
 
 export function PlaneFinder() {
   const [userPosition, setUserPosition] = useState<Position | null>(null)
   const [userHeading, setUserHeading] = useState<number>(0)
   const [aircraft, setAircraft] = useState<Aircraft[]>([])
+  const [lastKnownAircraft, setLastKnownAircraft] = useState<Map<string, Aircraft>>(new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string>('')
   const [updateInterval, setUpdateInterval] = useState(10)
@@ -196,6 +198,7 @@ export function PlaneFinder() {
     if (!userPosition) return
 
     try {
+      console.log('Fetching aircraft data...')
       const response = await fetch('/api/aircraft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -210,6 +213,7 @@ export function PlaneFinder() {
       }
 
       const data = await response.json()
+      console.log('Received aircraft data:', data)
 
       // Check if this is real data or demo data
       setIsRealData(data.isRealData ?? null)
@@ -230,16 +234,48 @@ export function PlaneFinder() {
         ),
       })) || []
 
-      // Filter aircraft within 100km and take max 10 closest
-      const filteredAircraft = aircraftWithDistance.filter((plane: Aircraft) => plane.distance <= 100)
+      console.log('Aircraft with distance:', aircraftWithDistance.length)
+
+      // Create a map of new aircraft data
+      const newAircraftMap = new Map<string, Aircraft>()
+      aircraftWithDistance.forEach((plane: Aircraft) => {
+        newAircraftMap.set(plane.id, plane)
+      })
+
+      // Merge with last known aircraft, preserving aircraft not in current update but within range
+      const currentTime = Date.now()
+      const mergedAircraftMap = new Map(lastKnownAircraft)
+
+      // Update with new data
+      newAircraftMap.forEach((plane, id) => {
+        mergedAircraftMap.set(id, { ...plane, lastSeen: currentTime })
+      })
+
+      // Remove aircraft not seen for more than 60 seconds or outside 100km range
+      for (const [id, plane] of mergedAircraftMap.entries()) {
+        const timeSinceLastSeen = currentTime - (plane.lastSeen || currentTime)
+        if (timeSinceLastSeen > 60000 || plane.distance > 100) {
+          mergedAircraftMap.delete(id)
+        }
+      }
+
+      // Convert to array and filter/sort
+      const allAircraft = Array.from(mergedAircraftMap.values())
+      const filteredAircraft = allAircraft.filter((plane: Aircraft) => plane.distance <= 100)
       filteredAircraft.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
-      setAircraft(filteredAircraft.slice(0, 10))
+
+      const finalAircraft = filteredAircraft.slice(0, 10)
+      console.log('Final aircraft count:', finalAircraft.length)
+      console.log('Aircraft IDs:', finalAircraft.map(a => a.id))
+
+      setLastKnownAircraft(mergedAircraftMap)
+      setAircraft(finalAircraft)
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Error fetching aircraft:', err)
       setError('Failed to fetch aircraft data')
     }
-  }, [userPosition])
+  }, [userPosition, lastKnownAircraft])
 
   useEffect(() => {
     getUserLocation()
@@ -360,6 +396,13 @@ export function PlaneFinder() {
                   const x = 160 + radarDistance * Math.sin((relativeBearing * Math.PI) / 180)
                   const y = 160 - radarDistance * Math.cos((relativeBearing * Math.PI) / 180)
 
+                  // Check if this is stale data (not updated in last 30 seconds)
+                  const isStale = plane.lastSeen && (Date.now() - plane.lastSeen) > 30000
+                  const isSelected = selectedAircraft?.id === plane.id
+
+                  const fillColor = isSelected ? "#FCD34D" : isStale ? "#94A3B8" : "#60A5FA"
+                  const strokeColor = isSelected ? "#F59E0B" : isStale ? "#64748B" : "#3B82F6"
+
                   return (
                     <g key={plane.id} transform={`translate(${x}, ${y})`}>
                       {/* Aircraft arrow */}
@@ -370,9 +413,10 @@ export function PlaneFinder() {
                       >
                         <path
                           d="M0,-8 L-4,4 L0,2 L4,4 Z"
-                          fill={selectedAircraft?.id === plane.id ? "#FCD34D" : "#60A5FA"}
-                          stroke={selectedAircraft?.id === plane.id ? "#F59E0B" : "#3B82F6"}
+                          fill={fillColor}
+                          stroke={strokeColor}
                           strokeWidth="1"
+                          opacity={isStale ? 0.6 : 1}
                         />
                       </g>
 
@@ -381,14 +425,27 @@ export function PlaneFinder() {
                         x="0"
                         y="-12"
                         textAnchor="middle"
-                        fill={selectedAircraft?.id === plane.id ? "#FCD34D" : "#60A5FA"}
+                        fill={fillColor}
                         fontSize="10"
                         fontWeight="bold"
                         style={{ cursor: 'pointer' }}
                         onClick={() => setSelectedAircraft(selectedAircraft?.id === plane.id ? null : plane)}
+                        opacity={isStale ? 0.6 : 1}
                       >
                         {plane.callsign || plane.id.slice(0, 6)}
                       </text>
+
+                      {/* Stale data indicator */}
+                      {isStale && (
+                        <circle
+                          cx="8"
+                          cy="-8"
+                          r="3"
+                          fill="#EF4444"
+                          stroke="#DC2626"
+                          strokeWidth="1"
+                        />
+                      )}
                     </g>
                   )
                 })}
