@@ -173,10 +173,12 @@ export async function POST(request: NextRequest) {
           clearTimeout(timeoutId)
 
           if (response.ok) {
-            console.log(`Success with endpoint: ${apiUrl}`)
+            console.log(`✅ Success with endpoint: ${apiUrl}`)
             break
           } else {
-            console.log(`Failed with status ${response.status} for endpoint: ${apiUrl}`)
+            const errorText = await response.text()
+            console.log(`❌ Failed with status ${response.status} for endpoint: ${apiUrl}`)
+            console.log(`Error response: ${errorText.substring(0, 200)}`)
             response = null
           }
         } catch (endpointError) {
