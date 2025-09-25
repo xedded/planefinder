@@ -34,6 +34,7 @@ export function PlaneFinder() {
   const [updateInterval, setUpdateInterval] = useState(10)
   const [showSettings, setShowSettings] = useState(false)
   const [isRealData, setIsRealData] = useState<boolean | null>(null)
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
 
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -134,6 +135,7 @@ export function PlaneFinder() {
 
       aircraftWithDistance.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
       setAircraft(aircraftWithDistance.slice(0, 5))
+      setLastUpdate(new Date())
     } catch (err) {
       console.error('Error fetching aircraft:', err)
       setError('Failed to fetch aircraft data')
@@ -224,6 +226,11 @@ export function PlaneFinder() {
             userHeading={userHeading}
             distance={closestAircraft?.distance || 0}
           />
+          {lastUpdate && (
+            <div className="text-center text-xs text-gray-500 mt-4">
+              Senast uppdaterad: {lastUpdate.toLocaleTimeString('sv-SE')}
+            </div>
+          )}
         </div>
 
         {closestAircraft ? (
