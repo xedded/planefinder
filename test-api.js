@@ -3,7 +3,7 @@
 async function testAPI() {
   try {
     console.log('Testing API with test coordinates...');
-    const response = await fetch('https://planefinder-qs5kbz8cu-xeddeds-projects.vercel.app/api/aircraft', {
+    const response = await fetch('https://planefinder-hsxkgdb0g-xeddeds-projects.vercel.app/api/aircraft', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
