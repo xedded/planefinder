@@ -137,18 +137,18 @@ export async function POST(request: NextRequest) {
       // Based on API testing, try these working endpoint formats
       const radius = 3.0  // Larger radius for more aircraft
 
-      // Test different potential FlightRadar24 API endpoints
+      // Based on FlightRadar24 API documentation patterns, test these endpoints
       const endpoints = [
-        // Try v1 flights endpoint
-        `https://fr24api.flightradar24.com/v1/flights?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
-        // Try flights search
-        `https://fr24api.flightradar24.com/flights/search?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`,
-        // Try common flights endpoint
-        `https://fr24api.flightradar24.com/common/v1/flights?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`,
-        // Try live feed endpoint
-        `https://fr24api.flightradar24.com/live/v1/flights?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
-        // Original search endpoint
-        `https://fr24api.flightradar24.com/common/v1/search.json?lat=${latitude}&lon=${longitude}&radius=${radius * 100}`
+        // Flight summary endpoint (documented)
+        `https://fr24api.flightradar24.com/v1/flight-summary?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Live flights endpoint
+        `https://fr24api.flightradar24.com/v1/flights/live?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Search endpoint with proper params
+        `https://fr24api.flightradar24.com/v1/search?type=position&lat=${latitude}&lon=${longitude}&radius=${radius * 111}`,
+        // Flights endpoint
+        `https://fr24api.flightradar24.com/v1/flights?lat=${latitude}&lon=${longitude}&radius=${radius * 111}`,
+        // Alternative flights endpoint structure
+        `https://fr24api.flightradar24.com/flights?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
       ]
 
       let response: Response | null = null
@@ -166,8 +166,15 @@ export async function POST(request: NextRequest) {
             'Accept': 'application/json',
           }
 
-          // Official FlightRadar24 API authentication
-          headers['Authorization'] = `Bearer ${apiKey}`
+          // Test multiple authentication methods for FlightRadar24 API
+          if (apiUrl.includes('fr24api.flightradar24.com')) {
+            // For official fr24api, try different auth methods
+            headers['Authorization'] = `Bearer ${apiKey}`
+            // Also try X-API-Key as backup
+            headers['X-API-Key'] = apiKey
+          } else {
+            headers['Authorization'] = `Bearer ${apiKey}`
+          }
 
           response = await fetch(apiUrl, {
             headers,
