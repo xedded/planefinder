@@ -71,11 +71,12 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      // Try multiple potential API endpoints
+      // Try multiple potential API endpoints with larger search radius
+      const radius = 0.5  // ~50km radius
       const endpoints = [
-        `https://api.flightradar24.com/v1/zones/fcgi?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}`,
-        `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
-        `https://api.flightradar24.com/v2/aircraft?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}`
+        `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
+        `https://api.flightradar24.com/v1/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        `https://api.flightradar24.com/v2/aircraft?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
       ]
 
       let response: Response | null = null
@@ -186,61 +187,7 @@ export async function POST(request: NextRequest) {
         aircraft.latitude !== latitude && aircraft.longitude !== longitude
       )
 
-      console.log(`Found ${aircraft.length} aircraft`)
-
-      // If no aircraft found or very few, add some demo aircraft nearby
-      if (aircraft.length < 2) {
-        console.log('Adding demo aircraft since few real aircraft found')
-        const demoAircraft = [
-          {
-            id: 'live-demo-1',
-            latitude: latitude + 0.015,
-            longitude: longitude + 0.020,
-            altitude: 32000,
-            speed: 420,
-            heading: 180,
-            callsign: 'SK1234',
-            aircraft: 'A320',
-            origin: 'ARN',
-            destination: 'CPH',
-            registration: 'SE-ABC',
-            aircraftType: 'Airbus A320',
-            image: null
-          },
-          {
-            id: 'live-demo-2',
-            latitude: latitude - 0.025,
-            longitude: longitude + 0.008,
-            altitude: 28000,
-            speed: 380,
-            heading: 90,
-            callsign: 'DY456',
-            aircraft: 'B737',
-            origin: 'OSL',
-            destination: 'STO',
-            registration: 'LN-XYZ',
-            aircraftType: 'Boeing 737-800',
-            image: null
-          },
-          {
-            id: 'live-demo-3',
-            latitude: latitude + 0.008,
-            longitude: longitude - 0.030,
-            altitude: 35000,
-            speed: 490,
-            heading: 45,
-            callsign: 'AF789',
-            aircraft: 'A350',
-            origin: 'CDG',
-            destination: 'ARN',
-            registration: 'F-WXYZ',
-            aircraftType: 'Airbus A350-900',
-            image: null
-          }
-        ]
-        aircraft.push(...demoAircraft)
-      }
-
+      console.log(`Found ${aircraft.length} real aircraft from FlightRadar24`)
       return NextResponse.json({ aircraft, isRealData: true })
     } catch (apiError) {
       console.error('FlightRadar24 API fetch error:', apiError)
