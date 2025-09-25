@@ -26,7 +26,7 @@ export async function GET() {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
-        'API-Version': 'v1',
+        'Accept-Version': 'v1',
         'Accept': 'application/json',
         'User-Agent': 'PlaneFinder/1.0'
       }

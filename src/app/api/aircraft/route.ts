@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
           // Official FR24 API headers as per documentation
           const headers: Record<string, string> = {
             'Authorization': `Bearer ${apiKey}`,
-            'API-Version': 'v1',
+            'Accept-Version': 'v1',
             'Accept': 'application/json',
             'User-Agent': 'PlaneFinder/1.0'
           }
