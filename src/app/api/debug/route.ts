@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
       parsedData = { error: 'Could not parse as JSON', raw: responseText.substring(0, 1000) }
     }
 
+    // Return response with authenticated API results
     return NextResponse.json({
       url: publicUrl,
       status: response.status,
