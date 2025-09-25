@@ -24,7 +24,7 @@ interface Aircraft {
   destination?: string
   registration?: string
   aircraftType?: string
-  image?: string | null
+  image?: string
   distance: number
   bearing: number
 }
@@ -40,7 +40,7 @@ export function PlaneFinder() {
   const [isRealData, setIsRealData] = useState<boolean | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
   const [expandedAircraft, setExpandedAircraft] = useState<string | null>(null)
-  const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested'>('not-requested')
+  const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested' | 'prompt'>('not-requested')
 
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -66,7 +66,7 @@ export function PlaneFinder() {
     )
   }
 
-  const requestOrientationPermission = async () => {
+  const requestOrientationPermission = useCallback(async () => {
     if (typeof DeviceOrientationEvent !== 'undefined' && 'requestPermission' in DeviceOrientationEvent) {
       try {
         const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<PermissionState> }).requestPermission()
@@ -83,7 +83,7 @@ export function PlaneFinder() {
       setOrientationPermission('granted')
       watchOrientation()
     }
-  }
+  }, [])
 
   const watchOrientation = () => {
     if ('DeviceOrientationEvent' in window) {
@@ -91,8 +91,9 @@ export function PlaneFinder() {
         if (event.alpha !== null) {
           // Convert compass heading to match true north
           let heading = event.alpha
-          if (event.webkitCompassHeading) {
-            heading = event.webkitCompassHeading // iOS gives us true north
+          const eventWithWebkit = event as DeviceOrientationEvent & { webkitCompassHeading?: number }
+          if (eventWithWebkit.webkitCompassHeading) {
+            heading = eventWithWebkit.webkitCompassHeading // iOS gives us true north
           } else {
             heading = 360 - heading // Android gives us magnetic north, convert to true north
           }
@@ -185,7 +186,7 @@ export function PlaneFinder() {
     if (orientationPermission === 'not-requested') {
       requestOrientationPermission()
     }
-  }, [])
+  }, [orientationPermission, requestOrientationPermission])
 
   useEffect(() => {
     if (!userPosition) return

@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
               destination: (aircraftArray[12] as string) || 'Unknown',
               registration: (aircraftArray[9] as string) || 'Unknown',
               aircraftType: (aircraftArray[8] as string) || 'Aircraft',
-              image: null
+              image: undefined
             }
           }).filter(aircraft =>
             aircraft.latitude !== latitude && aircraft.longitude !== longitude &&
@@ -264,7 +264,7 @@ export async function POST(request: NextRequest) {
           destination: (flight.destination || plane.destination || 'Unknown') as string,
           registration: (aircraft_info.registration || plane.registration || 'Unknown') as string,
           aircraftType: (aircraft_info.model || aircraft_info.type || plane.aircraft_type || 'Aircraft') as string,
-          image: (aircraft_info.image || plane.image || null) as string | null
+          image: (aircraft_info.image || plane.image || undefined) as string | undefined
         }
       }).filter((aircraft: { latitude: number; longitude: number }) =>
         aircraft.latitude !== latitude && aircraft.longitude !== longitude &&
@@ -321,7 +321,7 @@ export async function POST(request: NextRequest) {
                   destination: (planeObj.to || planeObj.destination || 'Unknown') as string,
                   registration: (planeObj.reg || planeObj.registration || 'Unknown') as string,
                   aircraftType: (planeObj.aircraft_type || planeObj.type || 'Aircraft') as string,
-                  image: (planeObj.image || planeObj.photo || planeObj.pic || null) as string | null
+                  image: (planeObj.image || planeObj.photo || planeObj.pic || undefined) as string | undefined
                 }
               }).filter((aircraft: { latitude: number; longitude: number }) =>
                 aircraft.latitude !== latitude && aircraft.longitude !== longitude
