@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
     }
 
     const getDemoData = () => ({
+      isRealData: false,
       aircraft: [
         {
           id: 'demo-1',
@@ -162,7 +163,7 @@ export async function POST(request: NextRequest) {
       )
 
       console.log(`Found ${aircraft.length} aircraft`)
-      return NextResponse.json({ aircraft })
+      return NextResponse.json({ aircraft, isRealData: true })
     } catch (apiError) {
       console.error('FlightRadar24 API fetch error:', apiError)
       return NextResponse.json(getDemoData())

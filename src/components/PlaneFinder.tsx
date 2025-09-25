@@ -33,6 +33,7 @@ export function PlaneFinder() {
   const [error, setError] = useState<string>('')
   const [updateInterval, setUpdateInterval] = useState(10)
   const [showSettings, setShowSettings] = useState(false)
+  const [isRealData, setIsRealData] = useState<boolean | null>(null)
 
   const getUserLocation = () => {
     if (!navigator.geolocation) {
@@ -112,6 +113,9 @@ export function PlaneFinder() {
 
       const data = await response.json()
 
+      // Check if this is real data or demo data
+      setIsRealData(data.isRealData ?? null)
+
       const aircraftWithDistance = data.aircraft?.map((plane: Aircraft) => ({
         ...plane,
         distance: calculateDistance(
@@ -183,7 +187,21 @@ export function PlaneFinder() {
     <div className="min-h-screen bg-slate-900 text-white p-4">
       <div className="max-w-md mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-blue-400">PlaneFinder</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-blue-400">PlaneFinder</h1>
+            {isRealData !== null && (
+              <div className="flex items-center text-xs mt-1">
+                <div
+                  className={`w-2 h-2 rounded-full mr-2 ${
+                    isRealData ? 'bg-green-400' : 'bg-yellow-400'
+                  }`}
+                />
+                <span className="text-gray-400">
+                  {isRealData ? 'Live FlightRadar24 data' : 'Demo data'}
+                </span>
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowSettings(!showSettings)}
             className="text-gray-400 hover:text-white"
