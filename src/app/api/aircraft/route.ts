@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
-  let latitude: number
-  let longitude: number
+  let latitude: number = 59.3293 // Stockholm default
+  let longitude: number = 18.0686 // Stockholm default
 
   try {
     const body = await request.json()
-    latitude = body.latitude
-    longitude = body.longitude
+    latitude = body.latitude || latitude
+    longitude = body.longitude || longitude
 
     if (!latitude || !longitude) {
       return NextResponse.json(
