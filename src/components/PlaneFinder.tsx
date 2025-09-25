@@ -1,8 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Image from 'next/image'
-import { CompassArrow } from './CompassArrow'
 import { AircraftInfo } from './AircraftInfo'
 import { Settings } from './Settings'
 
@@ -39,7 +37,7 @@ export function PlaneFinder() {
   const [showSettings, setShowSettings] = useState(false)
   const [isRealData, setIsRealData] = useState<boolean | null>(null)
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null)
-  const [expandedAircraft, setExpandedAircraft] = useState<string | null>(null)
+  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null)
   const [orientationPermission, setOrientationPermission] = useState<'granted' | 'denied' | 'not-requested' | 'prompt'>('not-requested')
 
   const getUserLocation = () => {
@@ -66,45 +64,67 @@ export function PlaneFinder() {
     )
   }
 
+  const watchOrientation = useCallback(() => {
+    if ('DeviceOrientationEvent' in window) {
+      const handleOrientation = (event: DeviceOrientationEvent) => {
+        console.log('Orientation event:', { alpha: event.alpha, beta: event.beta, gamma: event.gamma })
+
+        if (event.alpha !== null && event.alpha !== undefined) {
+          let heading = event.alpha
+          const eventWithWebkit = event as DeviceOrientationEvent & { webkitCompassHeading?: number }
+
+          if (eventWithWebkit.webkitCompassHeading !== undefined) {
+            // iOS with webkit compass heading (true north)
+            heading = eventWithWebkit.webkitCompassHeading
+            console.log('Using webkit compass heading:', heading)
+          } else {
+            // Android or other devices (magnetic north)
+            heading = 360 - heading
+            console.log('Using converted heading:', heading)
+          }
+
+          setUserHeading(heading)
+        } else {
+          console.log('No alpha value available')
+        }
+      }
+
+      console.log('Adding device orientation listener')
+      window.addEventListener('deviceorientation', handleOrientation, true)
+
+      return () => {
+        console.log('Removing device orientation listener')
+        window.removeEventListener('deviceorientation', handleOrientation, true)
+      }
+    } else {
+      console.log('DeviceOrientationEvent not supported')
+    }
+  }, [])
+
   const requestOrientationPermission = useCallback(async () => {
-    if (typeof DeviceOrientationEvent !== 'undefined' && 'requestPermission' in DeviceOrientationEvent) {
+    // Check if we're on iOS and need permission
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+
+    if (isIOS && typeof DeviceOrientationEvent !== 'undefined' && 'requestPermission' in DeviceOrientationEvent) {
       try {
+        // For iOS 13+ that requires permission
         const permission = await (DeviceOrientationEvent as unknown as { requestPermission: () => Promise<PermissionState> }).requestPermission()
+        console.log('iOS permission result:', permission)
         setOrientationPermission(permission)
         if (permission === 'granted') {
           watchOrientation()
         }
       } catch (error) {
-        console.error('Error requesting orientation permission:', error)
+        console.error('Error requesting iOS orientation permission:', error)
         setOrientationPermission('denied')
       }
     } else {
-      // For non-iOS devices or older browsers
+      // For Android and older iOS versions - try to use directly
+      console.log('Non-iOS device or older iOS - granting permission automatically')
       setOrientationPermission('granted')
       watchOrientation()
     }
-  }, [])
-
-  const watchOrientation = () => {
-    if ('DeviceOrientationEvent' in window) {
-      const handleOrientation = (event: DeviceOrientationEvent) => {
-        if (event.alpha !== null) {
-          // Convert compass heading to match true north
-          let heading = event.alpha
-          const eventWithWebkit = event as DeviceOrientationEvent & { webkitCompassHeading?: number }
-          if (eventWithWebkit.webkitCompassHeading) {
-            heading = eventWithWebkit.webkitCompassHeading // iOS gives us true north
-          } else {
-            heading = 360 - heading // Android gives us magnetic north, convert to true north
-          }
-          setUserHeading(heading)
-        }
-      }
-
-      window.addEventListener('deviceorientation', handleOrientation)
-      return () => window.removeEventListener('deviceorientation', handleOrientation)
-    }
-  }
+  }, [watchOrientation])
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371
@@ -128,11 +148,6 @@ export function PlaneFinder() {
     return (bearing + 360) % 360
   }
 
-  const bearingToCompass = (bearing: number): string => {
-    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
-    const index = Math.round(bearing / 22.5) % 16
-    return directions[index]
-  }
 
   const fetchAircraft = useCallback(async () => {
     if (!userPosition) return
@@ -173,7 +188,7 @@ export function PlaneFinder() {
       })) || []
 
       aircraftWithDistance.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
-      setAircraft(aircraftWithDistance.slice(0, 5))
+      setAircraft(aircraftWithDistance.slice(0, 3))
       setLastUpdate(new Date())
     } catch (err) {
       console.error('Error fetching aircraft:', err)
@@ -196,7 +211,6 @@ export function PlaneFinder() {
     return () => clearInterval(interval)
   }, [userPosition, updateInterval, fetchAircraft])
 
-  const closestAircraft = aircraft[0]
 
   if (loading) {
     return (
@@ -261,142 +275,114 @@ export function PlaneFinder() {
         )}
 
         <div className="mb-8">
-          <CompassArrow
-            targetBearing={closestAircraft?.bearing || 0}
-            userHeading={userHeading}
-            distance={closestAircraft?.distance || 0}
-          />
-
-          {closestAircraft && (
-            <div className="text-center text-sm text-gray-300 mt-4">
-              <div className="font-semibold">
-                {bearingToCompass(closestAircraft.bearing)} • {closestAircraft.bearing.toFixed(0)}°
-              </div>
-              <div className="text-xs text-gray-400">
-                Relativ riktning från din position
-              </div>
-            </div>
-          )}
-
-          {orientationPermission === 'not-requested' && (
-            <div className="text-center mt-4">
-              <button
-                onClick={requestOrientationPermission}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
+          {/* Radar Display */}
+          <div className="flex flex-col items-center">
+            <div className="relative w-80 h-80 mb-4">
+              <svg
+                width="320"
+                height="320"
+                viewBox="0 0 320 320"
+                className="absolute inset-0"
               >
-                Aktivera kompass
-              </button>
-            </div>
-          )}
+                {/* Radar rings */}
+                <circle cx="160" cy="160" r="140" fill="none" stroke="#374151" strokeWidth="2"/>
+                <circle cx="160" cy="160" r="105" fill="none" stroke="#374151" strokeWidth="1" strokeDasharray="4,4"/>
+                <circle cx="160" cy="160" r="70" fill="none" stroke="#374151" strokeWidth="1" strokeDasharray="2,2"/>
+                <circle cx="160" cy="160" r="35" fill="none" stroke="#374151" strokeWidth="1" strokeDasharray="2,2"/>
 
-          {orientationPermission === 'denied' && (
-            <div className="text-center text-xs text-yellow-400 mt-4">
-              Kompassbehörighet nekad - kompass visar norr
-            </div>
-          )}
+                {/* Cardinal directions */}
+                <text x="160" y="25" textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">N</text>
+                <text x="295" y="165" textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">E</text>
+                <text x="160" y="305" textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">S</text>
+                <text x="25" y="165" textAnchor="middle" fill="#9CA3AF" fontSize="14" fontWeight="bold">W</text>
 
-          {lastUpdate && (
-            <div className="text-center text-xs text-gray-500 mt-4">
-              Senast uppdaterad: {lastUpdate.toLocaleTimeString('sv-SE')}
+                {/* Aircraft on radar */}
+                {aircraft.map((plane) => {
+                  const relativeBearing = (plane.bearing - userHeading + 360) % 360
+                  const radarDistance = Math.min((plane.distance / 50) * 140, 140) // Scale to radar size, max 50km range
+                  const x = 160 + radarDistance * Math.sin((relativeBearing * Math.PI) / 180)
+                  const y = 160 - radarDistance * Math.cos((relativeBearing * Math.PI) / 180)
+
+                  return (
+                    <g key={plane.id} transform={`translate(${x}, ${y})`}>
+                      {/* Aircraft arrow */}
+                      <g
+                        transform={`rotate(${(plane.heading || 0) - userHeading})`}
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedAircraft(selectedAircraft?.id === plane.id ? null : plane)}
+                      >
+                        <path
+                          d="M0,-8 L-4,4 L0,2 L4,4 Z"
+                          fill={selectedAircraft?.id === plane.id ? "#FCD34D" : "#60A5FA"}
+                          stroke={selectedAircraft?.id === plane.id ? "#F59E0B" : "#3B82F6"}
+                          strokeWidth="1"
+                        />
+                      </g>
+
+                      {/* Flight number label */}
+                      <text
+                        x="0"
+                        y="-12"
+                        textAnchor="middle"
+                        fill={selectedAircraft?.id === plane.id ? "#FCD34D" : "#60A5FA"}
+                        fontSize="10"
+                        fontWeight="bold"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => setSelectedAircraft(selectedAircraft?.id === plane.id ? null : plane)}
+                      >
+                        {plane.callsign || plane.id.slice(0, 6)}
+                      </text>
+                    </g>
+                  )
+                })}
+
+                {/* Center point (user position) */}
+                <circle cx="160" cy="160" r="6" fill="#10B981" stroke="#ffffff" strokeWidth="2"/>
+                <circle cx="160" cy="160" r="2" fill="#ffffff"/>
+              </svg>
             </div>
-          )}
+
+            <div className="text-center space-y-2">
+              <div className="text-sm text-gray-400">
+                Räckvidd: 50km • Riktning: {userHeading.toFixed(0)}°
+              </div>
+
+              {orientationPermission === 'not-requested' && (
+                <button
+                  onClick={requestOrientationPermission}
+                  className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
+                >
+                  Aktivera kompass
+                </button>
+              )}
+
+              {orientationPermission === 'denied' && (
+                <div className="text-xs text-yellow-400">
+                  Kompassbehörighet nekad - radar visar norr
+                </div>
+              )}
+
+              {lastUpdate && (
+                <div className="text-xs text-gray-500">
+                  Senast uppdaterad: {lastUpdate.toLocaleTimeString('sv-SE')}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {closestAircraft ? (
-          <AircraftInfo aircraft={closestAircraft} />
+        {/* Selected aircraft info */}
+        {selectedAircraft ? (
+          <AircraftInfo aircraft={selectedAircraft} />
+        ) : aircraft.length > 0 ? (
+          <div className="text-center text-gray-400">
+            <p>Klicka på ett plan i radarn för mer information</p>
+            <p className="text-sm mt-2">Visar {aircraft.length} närmaste plan</p>
+          </div>
         ) : (
           <div className="text-center text-gray-400">
-            <p>No aircraft found nearby</p>
-            <p className="text-sm mt-2">Searching for planes...</p>
-          </div>
-        )}
-
-        {aircraft.length > 1 && (
-          <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-3">Other nearby aircraft:</h3>
-            <div className="space-y-2">
-              {aircraft.slice(1).map((plane) => (
-                <div key={plane.id} className="bg-slate-800 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setExpandedAircraft(expandedAircraft === plane.id ? null : plane.id)}
-                    className="w-full p-3 text-left hover:bg-slate-700 transition-colors"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="font-mono text-blue-400">{plane.callsign || plane.id}</div>
-                        <div className="text-xs text-gray-400">
-                          {bearingToCompass(plane.bearing)} • {plane.bearing.toFixed(0)}°
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-white">{plane.distance.toFixed(1)} km</div>
-                        <div className="text-xs text-gray-400">
-                          {expandedAircraft === plane.id ? '▲' : '▼'}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-
-                  {expandedAircraft === plane.id && (
-                    <div className="px-3 pb-3 border-t border-slate-700">
-                      {plane.image && (
-                        <div className="flex justify-center py-3">
-                          <Image
-                            src={plane.image}
-                            alt={plane.aircraftType || 'Aircraft'}
-                            width={200}
-                            height={96}
-                            className="max-w-full h-24 object-contain rounded"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display = 'none'
-                            }}
-                          />
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-2 gap-3 text-xs mt-3">
-                        <div>
-                          <div className="text-gray-400">Aircraft</div>
-                          <div className="font-mono text-white">
-                            {plane.aircraftType || plane.aircraft || 'Unknown'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400">Registration</div>
-                          <div className="font-mono text-white">
-                            {plane.registration || 'Unknown'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400">Altitude</div>
-                          <div className="font-mono text-white">
-                            {plane.altitude ? `${plane.altitude.toLocaleString()} ft` : 'Unknown'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400">Speed</div>
-                          <div className="font-mono text-white">
-                            {plane.speed ? `${Math.round(plane.speed)} kts` : 'Unknown'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400">Heading</div>
-                          <div className="font-mono text-white">
-                            {plane.heading ? `${Math.round(plane.heading)}°` : 'Unknown'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-gray-400">Route</div>
-                          <div className="font-mono text-white text-xs">
-                            {(plane.origin || 'Unknown')} → {(plane.destination || 'Unknown')}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            <p>Inga plan hittade i närheten</p>
+            <p className="text-sm mt-2">Söker efter plan...</p>
           </div>
         )}
       </div>

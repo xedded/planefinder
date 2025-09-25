@@ -27,11 +27,12 @@ export async function POST(request: NextRequest) {
           speed: 450,
           heading: 90,
           callsign: 'SAS123',
-          aircraft: 'A320',
+          aircraft: 'Airbus A320',
           origin: 'ARN',
           destination: 'CPH',
           registration: 'SE-ABC',
-          aircraftType: 'Airbus A320'
+          aircraftType: 'Airbus A320',
+          image: undefined
         },
         {
           id: 'demo-2',
@@ -41,11 +42,12 @@ export async function POST(request: NextRequest) {
           speed: 380,
           heading: 225,
           callsign: 'NAX456',
-          aircraft: 'B737',
+          aircraft: 'Boeing 737-800',
           origin: 'OSL',
           destination: 'STO',
           registration: 'LN-XYZ',
-          aircraftType: 'Boeing 737-800'
+          aircraftType: 'Boeing 737-800',
+          image: undefined
         },
         {
           id: 'demo-3',
@@ -55,11 +57,12 @@ export async function POST(request: NextRequest) {
           speed: 520,
           heading: 180,
           callsign: 'DLH789',
-          aircraft: 'A350',
+          aircraft: 'Airbus A350-900',
           origin: 'FRA',
           destination: 'ARN',
           registration: 'D-ADEF',
-          aircraftType: 'Airbus A350-900'
+          aircraftType: 'Airbus A350-900',
+          image: undefined
         }
       ]
     })
@@ -99,19 +102,26 @@ export async function POST(request: NextRequest) {
           const aircraft = aircraftEntries.slice(0, 10).map(([id, data]) => {
             const aircraftArray = data as unknown[]
 
+            // Log raw data for debugging
+            console.log(`Aircraft ${id} raw data:`, aircraftArray)
+
+            const parsedAlt = parseInt(aircraftArray[4] as string)
+            const parsedSpeed = parseInt(aircraftArray[5] as string)
+            const parsedHeading = parseInt(aircraftArray[3] as string)
+
             return {
               id: id,
               latitude: parseFloat(aircraftArray[1] as string) || latitude,
               longitude: parseFloat(aircraftArray[2] as string) || longitude,
-              altitude: parseInt(aircraftArray[4] as string) || 0,
-              speed: parseInt(aircraftArray[5] as string) || 0,
-              heading: parseInt(aircraftArray[3] as string) || 0,
-              callsign: (aircraftArray[16] as string) || 'Unknown',
-              aircraft: (aircraftArray[8] as string) || 'Unknown',
-              origin: (aircraftArray[11] as string) || 'Unknown',
-              destination: (aircraftArray[12] as string) || 'Unknown',
-              registration: (aircraftArray[9] as string) || 'Unknown',
-              aircraftType: (aircraftArray[8] as string) || 'Aircraft',
+              altitude: isNaN(parsedAlt) ? undefined : parsedAlt,
+              speed: isNaN(parsedSpeed) ? undefined : parsedSpeed,
+              heading: isNaN(parsedHeading) ? undefined : parsedHeading,
+              callsign: (aircraftArray[16] as string)?.trim() || (aircraftArray[13] as string)?.trim() || 'Unknown',
+              aircraft: (aircraftArray[8] as string)?.trim() || 'Unknown',
+              origin: (aircraftArray[11] as string)?.trim() || 'Unknown',
+              destination: (aircraftArray[12] as string)?.trim() || 'Unknown',
+              registration: (aircraftArray[9] as string)?.trim() || 'Unknown',
+              aircraftType: (aircraftArray[8] as string)?.trim() || 'Aircraft',
               image: undefined
             }
           }).filter(aircraft =>
