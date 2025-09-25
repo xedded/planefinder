@@ -70,45 +70,92 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-      const radius = 100
-      const apiUrl = `https://api.flightradar24.com/common/v1/search.json?query=&lat=${latitude}&lon=${longitude}&radius=${radius}`
+      // Try multiple potential API endpoints
+      const endpoints = [
+        `https://api.flightradar24.com/v1/zones/fcgi?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}`,
+        `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
+        `https://api.flightradar24.com/v2/aircraft?bounds=${latitude + 0.1},${latitude - 0.1},${longitude - 0.1},${longitude + 0.1}`
+      ]
 
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000)
+      let response: Response | null = null
 
-      const response = await fetch(apiUrl, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: controller.signal,
-      })
+      for (const apiUrl of endpoints) {
+        try {
+          console.log(`Trying endpoint: ${apiUrl}`)
 
-      clearTimeout(timeoutId)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 8000)
 
-      if (!response.ok) {
-        console.error('FlightRadar24 API error:', response.status, response.statusText)
+          response = await fetch(apiUrl, {
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'User-Agent': 'PlaneFinder/1.0',
+              'Accept': 'application/json',
+            },
+            signal: controller.signal,
+          })
+
+          clearTimeout(timeoutId)
+
+          if (response.ok) {
+            console.log(`Success with endpoint: ${apiUrl}`)
+            break
+          } else {
+            console.log(`Failed with status ${response.status} for endpoint: ${apiUrl}`)
+            response = null
+          }
+        } catch (endpointError) {
+          console.log(`Error with endpoint ${apiUrl}:`, endpointError)
+          continue
+        }
+      }
+
+      if (!response || !response.ok) {
+        console.error('All FlightRadar24 API endpoints failed')
         return NextResponse.json(getDemoData())
       }
 
       const data = await response.json()
+      console.log('API Response received:', Object.keys(data))
 
-      const aircraft = data.results?.aircraft?.map((plane: Record<string, unknown>) => ({
-        id: plane.hex || plane.id,
-        latitude: plane.lat,
-        longitude: plane.lon,
-        altitude: plane.alt,
-        speed: plane.spd,
-        heading: plane.hdg,
-        callsign: plane.call,
-        aircraft: plane.type,
-        origin: plane.from,
-        destination: plane.to,
-        registration: plane.reg,
-        aircraftType: plane.aircraft_type,
-        image: plane.image
-      })) || []
+      // Handle different response formats from different endpoints
+      let aircraftData = []
 
+      if (data.aircraft) {
+        // Standard aircraft array format
+        aircraftData = data.aircraft
+      } else if (Array.isArray(data)) {
+        // Direct array format
+        aircraftData = data
+      } else if (data.states) {
+        // OpenSky format
+        aircraftData = data.states
+      } else if (typeof data === 'object') {
+        // FlightRadar24 zones format - extract aircraft from object values
+        aircraftData = Object.values(data).filter((item: any) =>
+          item && typeof item === 'object' && item.lat && item.lon
+        )
+      }
+
+      const aircraft = aircraftData.slice(0, 10).map((plane: any, index: number) => ({
+        id: plane.hex || plane.icao || plane[0] || `aircraft-${index}`,
+        latitude: parseFloat(plane.lat || plane.latitude || plane[1]) || latitude,
+        longitude: parseFloat(plane.lon || plane.longitude || plane[2]) || longitude,
+        altitude: plane.alt || plane.altitude || plane[3] || 0,
+        speed: plane.spd || plane.speed || plane[5] || 0,
+        heading: plane.hdg || plane.heading || plane[4] || 0,
+        callsign: plane.call || plane.callsign || plane[16] || 'Unknown',
+        aircraft: plane.type || plane.aircraft || plane[8] || 'Unknown',
+        origin: plane.from || plane.origin || 'Unknown',
+        destination: plane.to || plane.destination || 'Unknown',
+        registration: plane.reg || plane.registration || 'Unknown',
+        aircraftType: plane.aircraft_type || plane.type || 'Aircraft',
+        image: plane.image || null
+      })).filter(aircraft =>
+        aircraft.latitude !== latitude && aircraft.longitude !== longitude
+      )
+
+      console.log(`Found ${aircraft.length} aircraft`)
       return NextResponse.json({ aircraft })
     } catch (apiError) {
       console.error('FlightRadar24 API fetch error:', apiError)
