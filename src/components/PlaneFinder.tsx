@@ -182,6 +182,7 @@ export function PlaneFinder() {
     if (!userPosition) return
 
     try {
+      console.log('🔄 Fetching aircraft...')
       const response = await fetch('/api/aircraft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -196,6 +197,7 @@ export function PlaneFinder() {
       }
 
       const data = await response.json()
+      console.log(`📊 Received ${data.isRealData ? 'LIVE' : 'DEMO'} data:`, data.aircraft?.length || 0, 'aircraft')
 
       // Check if this is real data or demo data
       setIsRealData(data.isRealData ?? null)
@@ -225,36 +227,38 @@ export function PlaneFinder() {
 
       // Merge with last known aircraft, preserving aircraft not in current update but within range
       const currentTime = Date.now()
-      const mergedAircraftMap = new Map(lastKnownAircraft)
+      setLastKnownAircraft(currentLastKnown => {
+        const mergedAircraftMap = new Map(currentLastKnown)
 
-      // Update with new data
-      newAircraftMap.forEach((plane, id) => {
-        mergedAircraftMap.set(id, { ...plane, lastSeen: currentTime })
-      })
+        // Update with new data
+        newAircraftMap.forEach((plane, id) => {
+          mergedAircraftMap.set(id, { ...plane, lastSeen: currentTime })
+        })
 
-      // Remove aircraft not seen for more than 60 seconds or outside 100km range
-      for (const [id, plane] of mergedAircraftMap.entries()) {
-        const timeSinceLastSeen = currentTime - (plane.lastSeen || currentTime)
-        if (timeSinceLastSeen > 60000 || plane.distance > 100) {
-          mergedAircraftMap.delete(id)
+        // Remove aircraft not seen for more than 60 seconds or outside 100km range
+        for (const [id, plane] of mergedAircraftMap.entries()) {
+          const timeSinceLastSeen = currentTime - (plane.lastSeen || currentTime)
+          if (timeSinceLastSeen > 60000 || plane.distance > 100) {
+            mergedAircraftMap.delete(id)
+          }
         }
-      }
 
-      // Convert to array and filter/sort
-      const allAircraft = Array.from(mergedAircraftMap.values())
-      const filteredAircraft = allAircraft.filter((plane: Aircraft) => plane.distance <= 100)
-      filteredAircraft.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
+        // Convert to array and filter/sort
+        const allAircraft = Array.from(mergedAircraftMap.values())
+        const filteredAircraft = allAircraft.filter((plane: Aircraft) => plane.distance <= 100)
+        filteredAircraft.sort((a: Aircraft, b: Aircraft) => a.distance - b.distance)
 
-      const finalAircraft = filteredAircraft.slice(0, 10)
+        const finalAircraft = filteredAircraft.slice(0, 10)
+        setAircraft(finalAircraft)
 
-      setLastKnownAircraft(mergedAircraftMap)
-      setAircraft(finalAircraft)
+        return mergedAircraftMap
+      })
       setLastUpdate(new Date())
     } catch (err) {
-      console.error('Error fetching aircraft:', err)
+      console.log('❌ fetchAircraft error:', err instanceof Error ? err.message : err)
       setError('Failed to fetch aircraft data')
     }
-  }, [userPosition, lastKnownAircraft])
+  }, [userPosition])
 
   useEffect(() => {
     getUserLocation()

@@ -87,8 +87,7 @@ export async function POST(request: NextRequest) {
 
       if (publicResponse.ok) {
         const publicData = await publicResponse.json()
-        console.log('Public API response keys:', Object.keys(publicData))
-        console.log('Public API aircraft count:', publicData.full_count || 0)
+        console.log('✅ Public API SUCCESS - aircraft count:', publicData.full_count || 0)
 
         if (publicData && typeof publicData === 'object') {
           // FlightRadar24 public API returns aircraft as object properties, not array
@@ -144,8 +143,7 @@ export async function POST(request: NextRequest) {
             aircraft.latitude !== 0 && aircraft.longitude !== 0
           )
 
-          console.log(`Found ${aircraft.length} aircraft from public API`)
-          console.log('Sample aircraft data:', aircraft.length > 0 ? aircraft[0] : 'No aircraft')
+          console.log(`✅ Parsed ${aircraft.length} aircraft from public API`)
 
           // Log aircraft with missing data
           const missingData = aircraft.filter(a => !a.speed || !a.altitude || a.origin === 'Unknown' || a.destination === 'Unknown')
@@ -166,11 +164,11 @@ export async function POST(request: NextRequest) {
         }
       }
     } catch (publicError) {
-      console.log('Public API failed:', publicError)
+      console.log('❌ Public API failed:', publicError instanceof Error ? publicError.message : publicError)
     }
 
     if (!apiKey) {
-      console.log('No API key configured, returning demo data')
+      console.log('❌ No API key - returning demo data')
       return NextResponse.json(getDemoData())
     }
 
@@ -231,7 +229,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!response || !response.ok) {
-        console.error('All FlightRadar24 API endpoints failed')
+        console.log('❌ All FR24 API endpoints failed - returning demo data')
         return NextResponse.json(getDemoData())
       }
 
@@ -377,12 +375,12 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ aircraft, isRealData: true })
     } catch (apiError) {
-      console.error('FlightRadar24 API fetch error:', apiError)
+      console.log('❌ FR24 API error:', apiError instanceof Error ? apiError.message : apiError, '- returning demo data')
       return NextResponse.json(getDemoData())
     }
 
   } catch (error) {
-    console.error('General API error:', error)
+    console.log('❌ General API error:', error instanceof Error ? error.message : error, '- returning fallback data')
 
     return NextResponse.json({
       aircraft: [
