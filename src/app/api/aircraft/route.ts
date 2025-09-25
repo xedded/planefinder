@@ -137,16 +137,14 @@ export async function POST(request: NextRequest) {
       // Based on API testing, try these working endpoint formats
       const radius = 3.0  // Larger radius for more aircraft
 
-      // Try different FlightRadar24 API endpoint formats that might work with Explorer plan
+      // Official FlightRadar24 API endpoints for authenticated requests
       const endpoints = [
-        // Try the live data endpoint with authentication
-        `https://data-live.flightradar24.com/zones/fcgi?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=14400&gliders=1&stats=1`,
-        // Official API endpoint with API key
-        `https://fr24api.flightradar24.com/common/v1/search.json?query=&lat=${latitude}&lon=${longitude}&limit=50`,
-        // Explorer API flights endpoint
-        `https://fr24api.flightradar24.com/flights/list?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
-        // Alternative format
-        `https://api.flightradar24.com/common/v1/flight-list.json?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
+        // Official flight positions endpoint
+        `https://fr24api.flightradar24.com/common/v1/search.json?lat=${latitude}&lon=${longitude}&radius=50`,
+        // Zone/bounds based search
+        `https://fr24api.flightradar24.com/common/v1/search.json?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`,
+        // Flight list endpoint
+        `https://fr24api.flightradar24.com/flights/list?bounds=${latitude + radius},${latitude - radius},${longitude - radius},${longitude + radius}`
       ]
 
       let response: Response | null = null
@@ -164,18 +162,8 @@ export async function POST(request: NextRequest) {
             'Accept': 'application/json',
           }
 
-          // Add authentication headers based on endpoint
-          if (apiUrl.includes('fr24api.flightradar24.com')) {
-            headers['X-RapidAPI-Key'] = apiKey
-            headers['X-RapidAPI-Host'] = 'fr24api.flightradar24.com'
-          } else if (apiUrl.includes('api.flightradar24.com')) {
-            headers['Authorization'] = `Bearer ${apiKey}`
-            headers['X-API-Key'] = apiKey
-          } else {
-            // For data-live endpoint, try both methods
-            headers['Authorization'] = `Bearer ${apiKey}`
-            headers['X-API-Key'] = apiKey
-          }
+          // Official FlightRadar24 API authentication
+          headers['Authorization'] = `Bearer ${apiKey}`
 
           response = await fetch(apiUrl, {
             headers,
